@@ -20,6 +20,10 @@
 		var exports = this;
 	}
 	
+	Backbone.Relational = {
+		cascadeEvents: true
+	}
+	
 	/**
 	 * Semaphore mixin; can be used as both binary and counting.
 	 **/
@@ -102,7 +106,7 @@
 	 * Global event queue. Accumulates external events ('add:<key>', 'remove:<key>' and 'update:<key>')
 	 * until the top-level object is fully initialized (see 'Backbone.RelationalModel').
 	 */
-	Backbone.eventQueue = new Backbone.BlockingQueue();
+	Backbone.Relational.eventQueue = new Backbone.BlockingQueue();
 	
 	/**
 	 * Backbone.Store keeps track of all created (and destruction of) Backbone.RelationalModel.
@@ -231,7 +235,7 @@
 			coll && coll.remove( model );
 		}
 	});
-	Backbone.store = new Backbone.Store();
+	Backbone.Relational.store = new Backbone.Store();
 	
 	/**
 	 * The main Relation class, from which 'HasOne' and 'HasMany' inherit.
@@ -263,7 +267,7 @@
 		// 'exports' should be the global object where 'relatedModel' can be found on if given as a string.
 		this.relatedModel = this.options.relatedModel;
 		if ( _.isString( this.relatedModel ) ) {
-			this.relatedModel = Backbone.store.getObjectByName( this.relatedModel );
+			this.relatedModel = Backbone.Relational.store.getObjectByName( this.relatedModel );
 		}
 		
 		if ( this.checkPreconditions() ) {
@@ -274,9 +278,9 @@
 			return false;
 		}
 		
-		// Add the reverse relation on 'relatedModel' to Backbone.store's reverseRelations
+		// Add the reverse relation on 'relatedModel' to the store's reverseRelations
 		if ( !this.options.isAutoRelation && this.reverseRelation.type && this.reverseRelation.key ) {
-			Backbone.store.addReverseRelation( _.defaults( {
+			Backbone.Relational.store.addReverseRelation( _.defaults( {
 					isAutoRelation: true,
 					model: this.relatedModel,
 					relatedModel: this.instance.constructor,
@@ -287,14 +291,14 @@
 		}
 		
 		// When a model in the store is destroyed, check if it is 'this.instance'.
-		Backbone.store.getCollection( this.instance ).bind( 'remove', function( model ) {
+		Backbone.Relational.store.getCollection( this.instance ).bind( 'remove', function( model ) {
 				if ( model === dit.instance ) {
 					dit.destroy();
 				}
 			});
 		
 		// When 'relatedModel' are created or destroyed, check if it affects this relation.
-		Backbone.store.getCollection( this.relatedModel )
+		Backbone.Relational.store.getCollection( this.relatedModel )
 			.bind( 'add', function( model, coll, options ) {
 					// Allow 'model' to set up it's relations, before calling 'tryAddRelated'
 					// (which can result in a call to 'addRelated' on a relation of 'model')
@@ -451,7 +455,7 @@
 			else if ( item && ( _.isString( item ) || typeof( item ) === 'object' ) ) {
 				// Try to find an instance of the appropriate 'relatedModel' in the store, or create it
 				var id = _.isString( item ) ? item : item[ this.relatedModel.prototype.idAttribute ];
-				model = Backbone.store.find( this.relatedModel, id ) || this.createModel( item );
+				model = Backbone.Relational.store.find( this.relatedModel, id ) || this.createModel( item );
 			}
 			
 			return model;
@@ -506,7 +510,7 @@
 			// Fire the 'update:<key>' event if 'related' was updated
 			if ( !options.silentChange && this.related !== oldRelated ) {
 				var dit = this;
-				Backbone.eventQueue.add( function() {
+				Backbone.Relational.eventQueue.add( function() {
 					dit.instance.trigger( 'update:' + dit.key, dit.instance, dit.related, options );
 				});
 			}
@@ -514,7 +518,7 @@
 		},
 		
 		/**
-		 * If a new 'this.relatedModel' appears in Backbone.store, try to match it to the last set 'keyContents'
+		 * If a new 'this.relatedModel' appears in the 'store', try to match it to the last set 'keyContents'
 		 */
 		tryAddRelated: function( model, options ) {
 			if ( this.related ) {
@@ -580,7 +584,7 @@
 				// Try to find instances of the appropriate 'relatedModel' in the store
 				_.each( this.keyContents, function( item ) {
 					var id = _.isString( item ) ? item : item[ this.relatedModel.prototype.idAttribute ];
-					var model = Backbone.store.find( this.relatedModel, id ) || this.createModel( item );
+					var model = Backbone.Relational.store.find( this.relatedModel, id ) || this.createModel( item );
 					
 					if ( model && !this.related.getByCid( model ) && !this.related.get( model ) ) {
 						this.related._add( model );
@@ -617,7 +621,7 @@
 				}, this );
 			
 			var dit = this;
-			Backbone.eventQueue.add( function() {
+			Backbone.Relational.eventQueue.add( function() {
 				!options.silentChange && dit.instance.trigger( 'update:' + dit.key, dit.instance, dit.related, options );
 			});
 		},
@@ -649,7 +653,7 @@
 				}, this );
 			
 			// Only trigger 'add' once the newly added model is initialized (so, has it's relations set up)
-			Backbone.eventQueue.add( function() {
+			Backbone.Relational.eventQueue.add( function() {
 				!options.silentChange && dit.instance.trigger( 'add:' + dit.key, model, dit.related, options );
 			});
 		},
@@ -666,7 +670,7 @@
 				}, this );
 			
 			var dit = this;
-			Backbone.eventQueue.add( function() {
+			Backbone.Relational.eventQueue.add( function() {
 				!options.silentChange && dit.instance.trigger( 'remove:' + dit.key, model, dit.related, options );
 			});
 		},
@@ -726,14 +730,50 @@
 				});
 			}
 			
+			_.bindAll( this, '_onModelEvent' );
+			this.bind( 'all', this._onModelEvent );
+			
 			this._queue = new Backbone.BlockingQueue();
 			this._queue.block();
-			Backbone.eventQueue.block();
+			Backbone.Relational.eventQueue.block();
 			
 			Backbone.Model.prototype.constructor.apply( this, arguments );
 			
 			// Try to run the global queue holding external events
-			Backbone.eventQueue.unblock();
+			Backbone.Relational.eventQueue.unblock();
+		},
+		
+		_onModelEvent: function( ev, model, related, options ) {
+			if ( !Backbone.Relational.cascadeEvents ) {
+				return;
+			}
+			
+			var type = ev.substr( 0, ev.indexOf(':') + 1 );
+			
+			if ( type === 'update:' || type === 'add:' || type === 'remove:' ) {
+				options = options || {};
+				options._path = options._path || [];
+				console.debug( '%s, %s, %s, this=%o, arguments=%o', this.id, model && model.id, related && related.id, this, arguments );
+				if ( this !== model && !_.include( options._path, this ) ) {
+					options._path.push( this );
+					var path = ev.substr( type.length );
+					
+					_.each( this.getRelations(), function( rel ) {
+							if ( rel.related && rel.related !== related ) {
+								var eventName = type + rel.key + ( path.length ? '.' + path : '');
+								console.debug( 'triggering eventName=%s on rel=%o', eventName, rel );
+								if ( rel.related instanceof Backbone.Collection ) {
+									rel.related.each( function( relatedModel ) {
+										relatedModel.trigger( eventName, model, related, options );
+									});
+								}
+								else {
+									rel.related.trigger( eventName, model, related, options );
+								}
+							}
+						}, this );
+				}
+			}
 		},
 		
 		/**
@@ -744,17 +784,17 @@
 			this.acquire(); // Setting up relations often also involve calls to 'set', and we only want to enter this function once
 			this._relations = [];
 			
-			Backbone.store.register( this );
+			Backbone.Relational.store.register( this );
 			
 			_.each( this.relations, function( rel ) {
-				var type = rel.type && ( _.isString( rel.type ) ? Backbone[ rel.type ] : rel.type );
-				if ( type && type.prototype instanceof Backbone.Relation.prototype.constructor ) {
-					new type( this, rel ); // Also pushes the new Relation into _relations
-				}
-				else {
-					console && console.warn( 'Relation=%o; missing or invalid type!', rel );
-				}
-			}, this );
+					var type = rel.type && ( _.isString( rel.type ) ? Backbone[ rel.type ] : rel.type );
+					if ( type && type.prototype instanceof Backbone.Relation.prototype.constructor ) {
+						new type( this, rel ); // Also pushes the new Relation into _relations
+					}
+					else {
+						console && console.warn( 'Relation=%o; missing or invalid type!', rel );
+					}
+				}, this );
 			
 			this._isInitialized = true;
 			this.release();
@@ -782,7 +822,7 @@
 		},
 		
 		set: function( attributes, options ) {
-			Backbone.eventQueue.block();
+			Backbone.Relational.eventQueue.block();
 			
 			var result = Backbone.Model.prototype.set.apply( this, arguments );
 			
@@ -797,11 +837,11 @@
 				}
 				
 				_.each( this._relations, function( rel ) {
-					var val = this.attributes[ rel.key ];
-					if ( rel.related !== val ) {
-						this.trigger('relationChange:' + rel.key, this, val, options || {} );
-					}
-				}, this );
+						var val = this.attributes[ rel.key ];
+						if ( rel.related !== val ) {
+							this.trigger('relationChange:' + rel.key, this, val, options || {} );
+						}
+					}, this );
 			}
 			
 			// 'set' is called quite late in 'Backbone.Model.prototype.constructor', but before 'initialize'.
@@ -809,20 +849,19 @@
 			if ( !this._isInitialized && !this.isLocked() && this.relations ) {
 				this.initializeRelations();
 			}
-			// Update the 'idAttribute' in Backbone.store if; we don't want it to miss an update due to {silent:true}
-			// (or any other cause..)
+			// Update the 'idAttribute' in the 'store'; we don't want it to miss an update due to {silent:true}
 			else if ( attributes && this.idAttribute in attributes ) {
-				Backbone.store.update( this );
+				Backbone.Relational.store.update( this );
 			}
 			
 			// Try to run the global queue holding external events
-			Backbone.eventQueue.unblock();
+			Backbone.Relational.eventQueue.unblock();
 			
 			return result;
 		},
 		
 		destroy: function( options ) {
-			Backbone.store.unregister( this );
+			Backbone.Relational.store.unregister( this );
 			return Backbone.Model.prototype.destroy.call( this, options );
 		},
 		
@@ -864,7 +903,7 @@
 	Backbone.Collection.prototype._add = function( model, options ) {
 		if ( !( model instanceof Backbone.Model ) ) {
 			// Try to find 'model' in Backbone.store. If it already exists, set the new properties on it.
-			var found = Backbone.store.find( this.model, model[ this.model.prototype.idAttribute ] );
+			var found = Backbone.Relational.store.find( this.model, model[ this.model.prototype.idAttribute ] );
 			if ( found ) {
 				model = found.set( model, options );
 			}

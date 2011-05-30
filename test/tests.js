@@ -116,10 +116,10 @@ $(document).ready(function() {
 	
 	function initObjects() {
 		// save _reverseRelations, otherwise we'll get a lot of warnings about existing relations
-		var oldReverseRelations = Backbone.store._reverseRelations;
-		Backbone.store = new Backbone.Store();
-		Backbone.store._reverseRelations = oldReverseRelations;
-		Backbone.eventQueue = new Backbone.BlockingQueue();
+		var oldReverseRelations = Backbone.Relational.store._reverseRelations;
+		Backbone.Relational.store = new Backbone.Store();
+		Backbone.Relational.store._reverseRelations = oldReverseRelations;
+		Backbone.Relational.eventQueue = new Backbone.BlockingQueue();
 		
 		person1 = new Person({
 			id: 'person-1',
@@ -258,16 +258,16 @@ $(document).ready(function() {
 	
 	
 		test("Initialized", function() {
-			equal( Backbone.store._collections.length, 5, "Store contains 5 collections" );
+			equal( Backbone.Relational.store._collections.length, 5, "Store contains 5 collections" );
 		});
 		
 		test("getObjectByName", function() {
-			equal( Backbone.store.getObjectByName( 'Backbone' ), Backbone );
-			equal( Backbone.store.getObjectByName( 'Backbone.RelationalModel' ), Backbone.RelationalModel );
+			equal( Backbone.Relational.store.getObjectByName( 'Backbone' ), Backbone );
+			equal( Backbone.Relational.store.getObjectByName( 'Backbone.RelationalModel' ), Backbone.RelationalModel );
 		});
 		
 		test("Add and remove from store", function() {
-			var coll = Backbone.store.getCollection( person1 );
+			var coll = Backbone.Relational.store.getCollection( person1 );
 			var length = coll.length;
 			
 			var person = new Person({
@@ -301,19 +301,19 @@ $(document).ready(function() {
 			ok( anotherHouse.get('occupants') instanceof Backbone.Collection, "Occupants is a Collection" );
 			ok( anotherHouse.get('occupants').get( personId ) instanceof Person, "Occupants contains the Person with id='" + personId + "'" );
 			
-			var person = Backbone.store.find( Person, personId );
+			var person = Backbone.Relational.store.find( Person, personId );
 			
 			ok( person, "Person with id=" + personId + " is found in the store" );
 			
 			person.destroy();
-			person = Backbone.store.find( Person, personId );
+			person = Backbone.Relational.store.find( Person, personId );
 			
 			ok( !person, personId + " is not found in the store anymore" );
 			ok( !anotherHouse.get('occupants').get( personId ), "Occupants no longer contains the Person with id='" + personId + "'" );
 			
 			anotherHouse.destroy();
 			
-			var house = Backbone.store.find( House, houseId );
+			var house = Backbone.Relational.store.find( House, houseId );
 			
 			ok( !house, houseId + " is not found in the store anymore" );
 		});
@@ -337,12 +337,12 @@ $(document).ready(function() {
 			var nodeList = new NodeList();
 			nodeList.reset( nodes );
 			
-			var storeColl = Backbone.store.getCollection( Node );
+			var storeColl = Backbone.Relational.store.getCollection( Node );
 			equals( storeColl.length, 4, "Every Node is in Backbone.store" );
-			ok( Backbone.store.find( Node, 1 ) instanceof Node, "Node 1 can be found" );
-			ok( Backbone.store.find( Node, 2 ) instanceof Node, "Node 2 can be found" );
-			ok( Backbone.store.find( Node, 3 ) instanceof Node, "Node 3 can be found" );
-			ok( Backbone.store.find( Node, 4 ) instanceof Node, "Node 4 can be found" );
+			ok( Backbone.Relational.store.find( Node, 1 ) instanceof Node, "Node 1 can be found" );
+			ok( Backbone.Relational.store.find( Node, 2 ) instanceof Node, "Node 2 can be found" );
+			ok( Backbone.Relational.store.find( Node, 3 ) instanceof Node, "Node 3 can be found" );
+			ok( Backbone.Relational.store.find( Node, 4 ) instanceof Node, "Node 4 can be found" );
 		});
 		
 	
